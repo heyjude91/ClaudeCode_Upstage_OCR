@@ -1,0 +1,30 @@
+# 환경변수 및 시크릿
+.env
+.env.local
+.env.*.local
+
+# 백엔드
+backend/__pycache__/
+backend/**/__pycache__/
+backend/**/*.pyc
+backend/.venv/
+backend/venv/
+backend/uploads/
+backend/data/
+*.db
+*.sqlite3
+
+# 프론트엔드
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# 에디터
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
