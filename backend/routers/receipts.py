@@ -90,8 +90,9 @@ def list_receipts(
     db: Session = Depends(get_db),
 ):
     """날짜·카테고리·상호명 필터와 페이지네이션을 지원하는 영수증 목록 조회"""
-    # TODO (Day 3): receipt_service 구현 후 연결
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 3에서 구현 예정")
+    return receipt_service.list_receipts(
+        db, date_from, date_to, category, store_name, page, limit
+    )
 
 
 # ── GET /{id} (상세) ───────────────────────────────────────────────────────────
@@ -102,8 +103,10 @@ def list_receipts(
 )
 def get_receipt(receipt_id: int, db: Session = Depends(get_db)):
     """특정 영수증의 상세 정보와 항목 목록을 반환합니다."""
-    # TODO (Day 3): receipt_service 구현 후 연결
-    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Day 3에서 구현 예정")
+    try:
+        return receipt_service.get_receipt(db, receipt_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
 
 
 # ── PUT /{id} (수정) ───────────────────────────────────────────────────────────
