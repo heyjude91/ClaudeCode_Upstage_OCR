@@ -185,35 +185,71 @@
 
 | Method | URL | 설명 | 요청 Body | 응답 |
 |--------|-----|------|-----------|------|
-| `POST` | `/api/receipts/upload` | 영수증 업로드 및 OCR 분석 | `multipart/form-data` (file) | OCR JSON + receipt_id |
-| `GET` | `/api/receipts` | 목록 조회 | Query: page, limit, category, start_date, end_date, keyword | receipts 배열 + pagination |
+| `POST` | `/api/receipts/upload` | 영수증 업로드 및 OCR 분석 | `multipart/form-data` (file) | `ReceiptRead` JSON |
+| `GET` | `/api/receipts` | 목록 조회 | Query: `page`, `limit`, `category`, `date_from`, `date_to`, `store_name` | receipts 배열 + pagination 메타 |
 | `GET` | `/api/receipts/{id}` | 상세 조회 | - | receipt + items 배열 |
-| `PUT` | `/api/receipts/{id}` | 영수증 수정 | JSON (store_name, date, category, items) | 수정된 receipt |
-| `DELETE` | `/api/receipts/{id}` | 영수증 삭제 | - | `{ "success": true }` |
-| `GET` | `/api/stats/summary` | 통계 데이터 | Query: start_date, end_date | 월별/카테고리별 집계 |
-| `GET` | `/api/categories` | 카테고리 목록 | - | categories 배열 |
+| `PUT` | `/api/receipts/{id}` | 영수증 수정 | JSON (`store_name`, `date`, `category`, `items`) | 수정된 receipt |
+| `DELETE` | `/api/receipts/{id}` | 영수증 삭제 | - | HTTP 204 No Content |
+| `GET` | `/api/stats/summary` | 통계 데이터 | Query: `date_from`, `date_to` | 월별/카테고리별/일별 집계 |
+| `GET` | `/api/categories` | 카테고리 목록 | - | 카테고리 문자열 배열 |
 
-### 5.2 공통 응답 형식
+### 5.2 쿼리 파라미터 상세
 
-**성공:**
+#### GET /api/receipts
+
+| 파라미터 | 타입 | 기본값 | 설명 |
+|----------|------|--------|------|
+| `page` | integer | 1 | 페이지 번호 (≥ 1) |
+| `limit` | integer | 20 | 페이지당 건수 (1~100) |
+| `category` | string | - | 카테고리 필터 (정확히 일치) |
+| `date_from` | string | - | 조회 시작 날짜 (YYYY-MM-DD) |
+| `date_to` | string | - | 조회 종료 날짜 (YYYY-MM-DD) |
+| `store_name` | string | - | 상호명 부분 일치 검색 |
+
+#### GET /api/stats/summary
+
+| 파라미터 | 타입 | 기본값 | 설명 |
+|----------|------|--------|------|
+| `date_from` | string | - | 집계 시작 날짜 (YYYY-MM-DD) |
+| `date_to` | string | - | 집계 종료 날짜 (YYYY-MM-DD) |
+
+### 5.3 OCR 파이프라인 (확정 — 1주차 Day 4)
+
+Upstage API 연결 테스트 결과를 바탕으로 2-단계 파이프라인을 확정한다.
+
+```
+이미지/PDF
+  │
+  ▼
+[STEP 1] Document Digitization API  POST /v1/document-digitization
+         model: "ocr"
+         → output[].text 블록 병합 → 원시 텍스트
+  │
+  ▼
+[STEP 2] Information Extraction API  POST /v1/information-extraction
+         model: "information-extract"
+         response_format: receipt_schema (JSON Schema)
+         → OCRResult JSON { date, store_name, items[], total, category }
+  │
+  ▼
+receipt_service.py → SQLite 저장
+```
+
+**사용 모델:**
+- OCR: `ocr` (document-digitization)
+- 구조화 추출: `information-extract`
+
+**타임아웃:** 각 단계 30초, 실패 시 1회 재시도
+
+### 5.4 공통 오류 응답 형식
+
 ```json
 {
-  "success": true,
-  "data": { },
-  "message": "string"
+  "detail": "오류 메시지"
 }
 ```
 
-**실패:**
-```json
-{
-  "success": false,
-  "error": {
-    "code": "UPLOAD_FAILED",
-    "message": "파일 처리 중 오류가 발생했습니다."
-  }
-}
-```
+> FastAPI 기본 `HTTPException` 형식을 사용한다.
 
 ---
 
@@ -245,16 +281,17 @@
 
 ### 6.3 카테고리 정의 (초기값)
 
-| 코드 | 표시명 |
-|------|--------|
-| food | 식료품 |
-| dining | 외식 |
-| shopping | 쇼핑 |
-| transport | 교통 |
-| medical | 의료/건강 |
-| culture | 문화/여가 |
-| education | 교육 |
-| etc | 기타 |
+> `/api/categories` 반환값과 동일. DB의 `category` 컬럼은 아래 표시명 문자열을 그대로 저장한다.
+
+| 표시명 | 설명 |
+|--------|------|
+| 식료품 | 마트·편의점 등 식품류 구매 |
+| 외식 | 음식점·카페 등 식음료 결제 |
+| 쇼핑 | 의류·잡화·가구 등 일반 쇼핑 |
+| 교통 | 택시·대중교통·주유 |
+| 의료 | 병원·약국·의료기기 |
+| 문화/여가 | 영화·공연·스포츠 |
+| 기타 | 위 항목에 해당하지 않는 지출 |
 
 ---
 
